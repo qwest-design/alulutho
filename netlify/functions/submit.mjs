@@ -114,8 +114,15 @@ export default async (req) => {
     });
     if (res.status === 429) return json(429, { ok: false, reason: "rate_limited" });
     if (!res.ok) {
-      console.error("Resend error", res.status, await res.text().catch(() => ""));
-      return json(502, { ok: false, reason: "failed" });
+      const err = await res.json().catch(() => ({}));
+      console.error("Resend error", res.status, JSON.stringify(err));
+      // Resend's error name/message (e.g. "validation_error: domain is not verified") help diagnose
+      // setup problems and contain no secrets.
+      return json(502, {
+        ok: false,
+        reason: "failed",
+        detail: `${res.status} ${oneLine(err.name, 60)}: ${oneLine(err.message, 200)}`,
+      });
     }
     const out = await res.json().catch(() => ({}));
     return json(200, { ok: true, id: out.id });
