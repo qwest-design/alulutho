@@ -1,16 +1,13 @@
 /**
- * Form delivery via Web3Forms (https://web3forms.com).
+ * Form delivery: every Contact, Booking and Intake submission is posted to the
+ * Netlify Function in netlify/functions/submit.mjs, which emails it through Resend
+ * to bookings@aluluthoinpractice.co.za (see that file for the environment variables).
  *
- * Every Contact, Booking and Intake submission is emailed to the address that
- * owns the Web3Forms access key. Set it in a `.env` file at the project root:
- *
- *   VITE_WEB3FORMS_KEY=your-access-key
- *
- * For local testing without sending anything, set VITE_FORMS_DEMO=true — submissions
- * then succeed instantly and are only logged to the browser console.
+ * In local development (npm run dev) there is no function, so .env.development sets
+ * VITE_FORMS_DEMO=true: submissions then succeed instantly and are only logged to the
+ * browser console. Use `netlify dev` to test real sending locally.
  */
-const ENDPOINT = "https://api.web3forms.com/submit";
-const ACCESS_KEY = import.meta.env.VITE_WEB3FORMS_KEY;
+const ENDPOINT = "/.netlify/functions/submit";
 const DEMO = import.meta.env.VITE_FORMS_DEMO === "true";
 
 const RATE_KEY = "ax-submit-log";
@@ -58,12 +55,13 @@ export async function submitForm({ kind, subject, replyTo, fromName, fields, hon
   if (rateLimited(kind)) return { ok: false, reason: "rate_limited" };
 
   const payload = {
-    subject: `${subject} · ${ref}`,
-    from_name: fromName || "Alulutho Xanywa website",
-    ...(replyTo ? { replyto: replyTo, email: replyTo } : {}),
-    Reference: ref,
-    "Form type": kind,
-    ...flatten(fields),
+    kind,
+    subject,
+    replyTo,
+    fromName,
+    reference: ref,
+    fields: flatten(fields),
+    botcheck: "",
   };
 
   if (DEMO) {
@@ -72,20 +70,15 @@ export async function submitForm({ kind, subject, replyTo, fromName, fields, hon
     return { ok: true, reference: ref, emailFailed: false };
   }
 
-  if (!ACCESS_KEY) {
-    console.error("VITE_WEB3FORMS_KEY is not set — add it to .env so forms can be delivered.");
-    return { ok: false, reason: "not_configured" };
-  }
-
   try {
     const res = await fetch(ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ access_key: ACCESS_KEY, botcheck: "", ...payload }),
+      body: JSON.stringify(payload),
     });
     const data = await res.json().catch(() => ({}));
     if (res.status === 429) return { ok: false, reason: "rate_limited" };
-    if (!res.ok || !data.success) return { ok: false, reason: "failed" };
+    if (!res.ok || !data.ok) return { ok: false, reason: data.reason || "failed" };
     return { ok: true, reference: ref, emailFailed: false };
   } catch {
     return { ok: false, reason: "failed" };

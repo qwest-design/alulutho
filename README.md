@@ -16,14 +16,23 @@ npm run build     # production files in dist/
 
 ## Make the forms send email
 
-Contact, Booking and Intake submissions are emailed through [Web3Forms](https://web3forms.com):
+Contact, Booking and Intake submissions are posted to a Netlify Function
+(`netlify/functions/submit.mjs`) that emails them through [Resend](https://resend.com) to
+**bookings@aluluthoinpractice.co.za**, with Reply-To set to the client's email.
 
-1. Create a free access key at web3forms.com using **bookings@aluluthoinpractice.co.za**.
-2. Copy `.env.example` to `.env` and paste the key into `VITE_WEB3FORMS_KEY=`.
-3. Rebuild (`npm run build`) and redeploy.
+Set these in Netlify → Project configuration → Environment variables, then redeploy:
 
-`VITE_FORMS_DEMO=true` (set in `.env.local` for development) makes forms succeed without
-sending anything — remove it or set it to `false` to send real emails locally.
+| Variable | Value |
+| --- | --- |
+| `RESEND_API_KEY` | Resend API key (`re_…`) with sending access — keep it secret |
+| `FORMS_TO` | `bookings@aluluthoinpractice.co.za` (comma-separate for several) |
+| `FORMS_FROM` | `Alulutho Xanywa Website <website@aluluthoinpractice.co.za>` |
+
+The domain must be verified in Resend (its DKIM/SPF records live in Netlify DNS).
+Every sent email shows in Resend → Emails.
+
+`npm run dev` has no function, so `.env.development` sets `VITE_FORMS_DEMO=true` and forms
+succeed without sending. Use `netlify dev` to test real sending locally.
 
 ## Where to edit things
 
